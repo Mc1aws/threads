@@ -1,0 +1,5 @@
+/mnt/c/Users/khalu/Desktop/Books_search/build/CMakeFiles/book_search.dir
+/mnt/c/Users/khalu/Desktop/Books_search/build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/khalu/Desktop/Books_search/build/CMakeFiles/rebuild_cache.dir
+/mnt/c/Users/khalu/Desktop/Books_search/build/_deps/json-build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/khalu/Desktop/Books_search/build/_deps/json-build/CMakeFiles/rebuild_cache.dir
