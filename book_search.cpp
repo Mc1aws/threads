@@ -6,7 +6,10 @@
 #include <algorithm>
 #include <omp.h>
 #include <nlohmann/json.hpp>
-#include <thread>  // Добавьте эту строку
+#include <thread>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 using json = nlohmann::json;
 using namespace std;
@@ -186,6 +189,9 @@ public:
 };
 
 int main() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     cout << "Параллельный поиск книг" << endl;
     cout << "============================" << endl;
     
@@ -199,7 +205,7 @@ int main() {
     searcher.warmupOpenMP();
     
     // Даем системе "остыть" после прогрева
-    this_thread::sleep_for(std::chrono::milliseconds(100)); //ругается
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     string author = "Brandon Sanderson";
     string genre = ""; 
