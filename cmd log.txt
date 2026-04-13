@@ -1,3 +1,7 @@
+g++ -fopenmp -I "E:\учеба\!парр\Books_search" book_search.cpp -o book_search.exe
+
+///////////////////////////////////////////////////////
+
 book_search.cpp: In function 'int main()':
 book_search.cpp:202:5: error: 'this_thread' has not been declared
   202 |     this_thread::sleep_for(std::chrono::milliseconds(100));
