@@ -1,0 +1,321 @@
+1:
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <math.h>
+
+int main(int argc, char* argv[]) {
+    int i, N;
+    struct timeval T1, T2;
+    long delta_ms;
+
+    N = atoi(argv[1]);
+    gettimeofday(&T1, NULL); 
+
+    //Этап 1
+    int A = 100;
+    double *M1,*M2,*M3;
+
+    for (i=0; i<100; i++) { 
+        //srand(i); 
+        unsigned int seed = i; 
+
+        M1 = (double*)malloc(N*sizeof(double)); 
+        M2 = (double*)malloc((N/2)*sizeof(double)); 
+
+        if (M1 == NULL || M2 == NULL) {
+            printf("Ошибка выделения памяти!\n");
+            return 1;
+        }
+
+        for(int ix=0;ix<N;ix++)
+        {   //M1[ix] = rand();
+            M1[ix] = 1 + (A - 1) * (rand_r(&seed) / (double)RAND_MAX);
+        }
+
+        for(int ix=0;ix<N/2;ix++)
+        {   //M2[ix] = rand();
+            M2[ix] = A + (9 * A) * (rand_r(&seed) / (double)RAND_MAX);
+        }
+        //------
+
+        //Этап 2
+        for(int ix=0;ix<N;ix++)
+        {   M1[ix] = pow(sinh(M1[ix]), 2); 
+        }
+
+        M3 = (double*)malloc((N/2)*sizeof(double));
+        if (M3 == NULL) {
+            printf("Ошибка выделения памяти!\n");
+            return 1;
+        }
+        for(int ix=0;ix<N/2;ix++)
+        {   M3[ix] = M2[ix];}
+
+        double preValue = 0;
+        for(int ix=0;ix<N/2;ix++)
+        {   M2[ix]=fabs(cos(M2[ix]+preValue)); 
+            preValue = M3[ix];
+        }
+        //------
+
+
+        //Этап 3
+        for (int ix = 0; ix < N/2; ix++) {
+            M2[ix] = M1[ix] * M2[ix];
+        }
+        //------
+
+        // Этап 4: Sort.
+Сортировка выбором (Selection sort) для массива M2 размером N/2
+        for (int i = 0; i < N/2 - 1; i++) {
+            int min_index = i;
+            
+            for (int j = i + 1; j < N/2; j++) {
+                if (M2[j] < M2[min_index]) {
+                    min_index = j;
+                }
+            }
+            if (min_index != i) {
+                double temp = M2[i];
+                M2[i] = M2[min_index];
+                M2[min_index] = temp;
+            }
+        }
+
+        // Этап 5: Reduce.
+        double X = 0.0;
+        double minNonZero = 0.0;
+        int found = 0;
+
+        for (int i = 0; i < N/2; i++) {
+            if (M2[i] > 0.0) {
+                minNonZero = M2[i];
+                found = 1;
+                break;
+            }
+        }
+
+        if (found) {
+            for (int i = 0; i < N/2; i++) {
+                double ratio = M2[i] / minNonZero;
+                int intPart = (int)ratio;
+                if (intPart % 2 == 0) {
+                    X += sin(M2[i]);
+                }
+            }
+        } else {
+            X = 0.0;
+        }
+        //-----
+        free(M1);
+        free(M2);
+        free(M3);
+
+        printf("Experiment %d: X = %.6f\n", i, X);
+    }
+
+    gettimeofday(&T2, NULL); 
+    delta_ms = (T2.tv_sec - T1.tv_sec) * 1000 +
+               (T2.tv_usec - T1.tv_usec) / 1000;
+
+    printf("\nN=%d. Milliseconds passed: %ld\n", N, delta_ms);
+    return 0;
+}
+
+2:
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <math.h>
+#include <string.h>
+#include <unistd.h>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+unsigned int generate_seed(int i, int thread_num) {
+        return i + thread_num * 1000;
+}
+
+void selection_sort(double *arr, int N) {
+    for (int i = 0; i < N - 1; i++) {
+        int min_index = i;
+        for (int j = i + 1; j < N; j++) {
+            if (arr[j] < arr[min_index]) {
+                min_index = j;
+            }
+        }
+        if (min_index != i) {
+            double temp = arr[i];
+            arr[i] = arr[min_index];
+            arr[min_index] = temp;
+        }
+    }
+}
+
+void print_progress(int *progress, int total_experiments) {
+    int last_percentage = -1;
+    
+    while (*progress < total_experiments) {
+        #pragma omp flush(progress)
+        int current_percentage = (*progress * 100) / total_experiments;
+        if (current_percentage != last_percentage) {
+            printf("Progress: %d%%\n", current_percentage);
+            last_percentage = current_percentage;
+        }
+        sleep(1);
+    }
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 5) {
+        printf("Usage: %s <N> <num_threads> <schedule> <chunk_size>\n", argv[0]);
+        return 1;
+    }
+
+    int N = atoi(argv[1]);
+    int num_threads = atoi(argv[2]);
+    char* schedule_type = argv[3];
+    const int chunk_size = atoi(argv[4]);
+    int progress = 0;           
+
+    omp_sched_t schedule;
+    if (strcmp(schedule_type, "static") == 0) {
+        schedule = omp_sched_static;
+    } else if (strcmp(schedule_type, "dynamic") == 0) {
+        schedule = omp_sched_dynamic;
+    } else if (strcmp(schedule_type, "guided") == 0) {
+        schedule = omp_sched_guided;
+    } else {
+        printf("Invalid schedule type. Use static, dynamic, or guided.\n");
+        return 1;
+    }
+
+    #ifdef _OPENMP
+        omp_set_num_threads(num_threads);
+        omp_set_schedule(schedule, chunk_size);
+        printf("Используем %d потоков\n", num_threads);
+    #endif
+
+    double start_time = omp_get_wtime();
+
+    #pragma omp parallel
+    {
+        #pragma omp single nowait
+        {
+            #pragma omp task
+            {
+                print_progress(&progress, 100);
+            }
+
+            // Основной цикл экспериментов
+            for (int i = 0; i < 100; i++) {
+                double *M1, *M2, *M3;
+                int A = 100;
+                int ix, intPart;
+                double ratio;
+
+                unsigned int seed = generate_seed(i, omp_get_thread_num());
+
+                M1 = (double*)malloc(N * sizeof(double));
+                M2 = (double*)malloc((N/2) * sizeof(double));
+                if (M1 == NULL || M2 == NULL) {
+                    printf("Ошибка выделения памяти!\n");
+                    exit(1);
+                }
+
+                #pragma omp parallel for schedule(static, chunk_size) default(none) private(ix) shared(M1, A, N, chunk_size) firstprivate(seed)
+                for (ix = 0; ix < N; ix++) {
+                    M1[ix] = 1 + (A - 1) * (rand_r(&seed) / (double)RAND_MAX);
+                }
+                #pragma omp parallel for schedule(static, chunk_size) default(none) private(ix) shared(M2, A, N, chunk_size) firstprivate(seed)
+                for (ix = 0; ix < N/2; ix++) {
+                    M2[ix] = A + (9 * A) * (rand_r(&seed) / (double)RAND_MAX);
+                }
+
+                // Этап 2: Применение функции к массиву M1 и копирование M2 в M3
+                #pragma omp parallel for schedule(static, chunk_size) default(none) private(ix) shared(M1, N, chunk_size)
+                for (ix = 0; ix < N; ix++) {
+                    M1[ix] = pow(sinh(M1[ix]), 2);
+                }
+
+                M3 = (double*)malloc((N/2) * sizeof(double));
+                if (M3 == NULL) {
+                    printf("Ошибка выделения памяти!\n");
+                    exit(1);
+                }
+                #pragma omp parallel for schedule(static, chunk_size) default(none) private(ix) shared(M2, M3, N, chunk_size)
+                for (ix = 0; ix < N/2; ix++) {
+                    M3[ix] = M2[ix];
+                }
+
+                double preValue = 0;
+                for (ix = 0; ix < N/2; ix++) {
+                    M2[ix] = fabs(cos(M2[ix] + preValue));
+                    preValue = M3[ix];
+                }
+				// Этап 3: Перемножение элементов
+                #pragma omp parallel for schedule(static, chunk_size) default(none) private(ix) shared(M1, M2, N, chunk_size)
+                for (ix = 0; ix < N/2; ix++) {
+                    M2[ix] = M1[ix] * M2[ix];
+                }
+
+                // Этап 4: Параллельная сортировка двух половин массива
+                #pragma omp parallel sections
+                {
+                    #pragma omp section
+                    {
+                        selection_sort(M2, N/2/2);
+                    }
+                    #pragma omp section
+                    {
+                        selection_sort(M2 + N/2/2, N/2/2);
+                    }
+                }
+				
+				selection_sort(M2, N/2);
+
+                // Этап 5: Reduce
+                double X = 0.0;
+                double minNonZero = 0.0;
+                int found = 0;
+                for (int j = 0; j < N/2; j++) {
+                    if (M2[j] > 0.0) {
+                        minNonZero = M2[j];
+                        found = 1;
+                        break;
+                    }
+                }
+                if (found) {
+                    #pragma omp parallel for schedule(static, chunk_size) default(none) private(ix, ratio, intPart) shared(M2, minNonZero, N, chunk_size) reduction(+:X)
+                    for (ix = 0; ix < N/2; ix++) {
+                        ratio = M2[ix] / minNonZero;
+                        intPart = (int)ratio;
+                        if (intPart % 2 == 0) {
+                            X += sin(M2[ix]);
+                        }
+                    }
+                } else {
+                    X = 0.0;
+                }
+
+                free(M1);
+                free(M2);
+                free(M3);
+
+                printf("Experiment %d: X = %.6f\n", i, X);
+
+                #pragma omp atomic
+                progress++;
+            } 
+        } // end single
+    } // end parallel
+
+    double end_time = omp_get_wtime();
+    double delta_ms = (end_time - start_time) * 1000;
+    printf("\nN=%d. Milliseconds passed: %f\n", N, delta_ms);
+    return 0;
+}
